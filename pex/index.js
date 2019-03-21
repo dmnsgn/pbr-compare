@@ -1,28 +1,51 @@
-const loadJSON = require('pex-io/loadJSON')
-const loadText = require('pex-io/loadText')
-const loadImage = require('pex-io/loadImage')
-const loadBinary = require('pex-io/loadBinary')
-const createCube = require('primitive-cube')
-const createBox = require('primitive-box')
-const Mat4 = require('pex-math/Mat4')
-const Vec3 = require('pex-math/Vec3')
-const Quat = require('pex-math/Quat')
-const AABB = require('pex-geom/AABB')
-const createRenderer = require('pex-renderer')
-const createCamera = require('pex-cam/perspective')
-const createOrbiter = require('pex-cam/orbiter')
-const createContext = require('pex-context')
-const async = require('async')
-const path = require('path')
-const GUI = require('pex-gui')
-const edges = require('geom-edges')
-const isPOT = require('is-power-of-two')
-const nextPOT = require('next-power-of-two')
-const assert = require('assert')
-const parseHdr = require('parse-hdr')
-// const debug = require('debug')('gltf')
+import COMMON from '../common.js'
 
-const ctx = createContext({ debug: true })
+import createRenderer from 'pex-renderer'
+import createContext from 'pex-context'
+import createGL from 'pex-gl'
+
+import loadJSON from 'pex-io/loadJSON'
+import loadImage from 'pex-io/loadImage'
+import loadBinary from 'pex-io/loadBinary'
+
+import Mat4 from 'pex-math/mat4'
+import Vec3 from 'pex-math/vec3'
+import Quat from 'pex-math/quat'
+import AABB from 'pex-geom/aabb'
+
+import createCube from 'primitive-cube'
+import createBox from 'primitive-box'
+
+import async from 'async'
+import path from 'path'
+import GUI from 'pex-gui'
+import edges from 'geom-edges'
+import isPOT from 'is-power-of-two'
+import nextPOT from 'next-power-of-two'
+import assert from 'assert'
+import parseHdr from 'parse-hdr'
+
+COMMON.addLabel('PEX')
+
+// const gl = createGL({
+//   canvas: COMMON.canvas,
+//   // width: COMMON.canvas.width,
+//   // height: COMMON.canvas.height
+// })
+const ctx = createContext({
+  canvas: COMMON.canvas,
+  debug: true
+})
+
+const W = window.innerWidth
+const H = window.innerHeight
+const pixelRatio = window.devicePixelRatio || 1
+
+COMMON.canvas.style.width = W + 'px'
+COMMON.canvas.style.height = H + 'px'
+COMMON.canvas.width = W * pixelRatio
+COMMON.canvas.height = H * pixelRatio
+
 ctx.gl.getExtension('EXT_shader_texture_lod')
 ctx.gl.getExtension('OES_standard_derivatives')
 ctx.gl.getExtension('WEBGL_draw_buffers')
@@ -30,9 +53,16 @@ ctx.gl.getExtension('OES_texture_float')
 
 // var WebGLDebugUtils = require('webgl-debug')
 
-function throwOnGLError (err, funcName, args) {
+function throwOnGLError(err, funcName, args) {
   console.log('Error', funcName, args)
-  throw new Error(`${WebGLDebugUtils.glEnumToString(err)} was caused by call to ${funcName} ${WebGLDebugUtils.glFunctionArgsToString(funcName, args)}`)
+  throw new Error(
+    `${WebGLDebugUtils.glEnumToString(
+      err
+    )} was caused by call to ${funcName} ${WebGLDebugUtils.glFunctionArgsToString(
+      funcName,
+      args
+    )}`
+  )
 }
 
 // ctx.gl = WebGLDebugUtils.makeDebugContext(ctx.gl, throwOnGLError)
@@ -42,7 +72,7 @@ const renderer = createRenderer({
   shadowQuality: 4,
   pauseOnBlur: true,
   profile: false,
-  profileFlush: false,
+  profileFlush: false
 })
 
 const gui = new GUI(ctx)
@@ -56,40 +86,41 @@ const State = {
   elevationMat: Mat4.create(),
   rotationMat: Mat4.create(),
   selectedModel: '',
-  scenes: [],
+  scenes: []
   // loadAll: true
 }
 
 const positions = [[0, 0, 0], [0, 0, 0]]
 const indices = []
-function addLine (a, b) {
+function addLine(a, b) {
   positions.push(a, b)
 }
 // const sphere = renderer.add(renderer.entity([
-  // renderer.geometry(require('primitive-sphere')()),
-  // renderer.material({
-    // baseColor: [1, 0, 0, 1],
-    // metallic: 1,
-    // roughness: 0,
-    // castShadows: true
-  // })
+// renderer.geometry(require('primitive-sphere')()),
+// renderer.material({
+// baseColor: [1, 0, 0, 1],
+// metallic: 1,
+// roughness: 0,
+// castShadows: true
+// })
 // ]))
 
-const lineBuilder = renderer.add(renderer.entity([
-  renderer.geometry({
-    positions: positions,
-    count: 2,
-    primitive: ctx.Primitive.Lines
-  }),
-  renderer.material({
-    baseColor: [1, 0, 0, 1],
-    castShadows: true,
-    receiveShadows: true
-  })
-]))
+const lineBuilder = renderer.add(
+  renderer.entity([
+    renderer.geometry({
+      positions: positions,
+      count: 2,
+      primitive: ctx.Primitive.Lines
+    }),
+    renderer.material({
+      baseColor: [1, 0, 0, 1],
+      castShadows: true,
+      receiveShadows: true
+    })
+  ])
+)
 
-function updateSunPosition () {
-
+function updateSunPosition() {
   // Mat4.setRotation(State.elevationMat, State.elevation / 180 * Math.PI, [0, 0, 1])
   // Mat4.setRotation(State.rotationMat, State.azimuth / 180 * Math.PI, [0, 1, 0])
 
@@ -112,23 +143,34 @@ function updateSunPosition () {
     State.reflectionProbe.dirty = true // FIXME: hack
   }
 }
-function makeQuad (opts) {
+function makeQuad(opts) {
   const w = opts.width
   const h = opts.height
   const position = opts.position || [0, 0, 0]
   const points = [
-    [-1, -1, 0], [1, -1, 0],
-    [1, -1, 0], [1, 1, 0],
-    [1, 1, 0], [-1, 1, 0],
-    [-1, 1, 0], [-1, -1, 0],
-    [-1, -1, 0], [1, 1, 0],
-    [-1, 1, 0], [1, -1, 0],
+    [-1, -1, 0],
+    [1, -1, 0],
+    [1, -1, 0],
+    [1, 1, 0],
+    [1, 1, 0],
+    [-1, 1, 0],
+    [-1, 1, 0],
+    [-1, -1, 0],
+    [-1, -1, 0],
+    [1, 1, 0],
+    [-1, 1, 0],
+    [1, -1, 0],
 
-    [-1, -1, 0], [-1, -1, 1 / 2],
-    [1, -1, 0], [1, -1, 1 / 2],
-    [1, 1, 0], [1, 1, 1 / 2],
-    [-1, 1, 0], [-1, 1, 1 / 2],
-    [0, 0, 0], [0, 0, 1 / 2]
+    [-1, -1, 0],
+    [-1, -1, 1 / 2],
+    [1, -1, 0],
+    [1, -1, 1 / 2],
+    [1, 1, 0],
+    [1, 1, 1 / 2],
+    [-1, 1, 0],
+    [-1, 1, 1 / 2],
+    [0, 0, 0],
+    [0, 0, 1 / 2]
   ]
   points.forEach((p) => {
     p[0] *= w / 2
@@ -138,27 +180,27 @@ function makeQuad (opts) {
   return points
 }
 
-function initSky (panorama) {
-  const sun = State.sun = renderer.directionalLight({
+function initSky(panorama) {
+  const sun = (State.sun = renderer.directionalLight({
     direction: Vec3.sub(Vec3.create(), State.sunPosition),
     color: [1, 1, 0.95, 1],
     intensity: 5,
     castShadows: true
-  })
+  }))
 
-  const light = State.light = renderer.pointLight({
+  const light = (State.light = renderer.pointLight({
     position: [1, 1, 1],
     color: [1, 1, 1, 1],
     intensity: 10,
     castShadows: true
-  })
+  }))
 
-  const light2 = State.light2 = renderer.pointLight({
+  const light2 = (State.light2 = renderer.pointLight({
     position: [1, 1, 1],
     color: [1, 1, 1, 1],
     intensity: 2,
     castShadows: true
-  })
+  }))
 
   const areaLight = renderer.areaLight({
     // color: [1, 0.15, 0.02, 1],
@@ -166,84 +208,95 @@ function initSky (panorama) {
     intensity: 3,
     castShadows: true
   })
-  const areaLightGizmoPositions = makeQuad({ width: 1, height: 1})
-  var areaLightEntity = renderer.entity([
-    renderer.transform({
-      scale: [0.25, 1, 1],
-      position: [1, 0.15, 0],
-      // rotation: Quat.fromDirection(Quat.create(), [-1, 0, 0])
-    }),
-    // renderer.geometry({
+  const areaLightGizmoPositions = makeQuad({ width: 1, height: 1 })
+  var areaLightEntity = renderer.entity(
+    [
+      renderer.transform({
+        scale: [0.25, 1, 1],
+        position: [1, 0.15, 0]
+        // rotation: Quat.fromDirection(Quat.create(), [-1, 0, 0])
+      }),
+      // renderer.geometry({
       // positions: areaLightGizmoPositions,
       // primitive: ctx.Primitive.Lines,
       // count: areaLightGizmoPositions.length
-    // }),
-    // renderer.material({
+      // }),
+      // renderer.material({
       // baseColor: [0, 1, 1, 1]
-    // }),
-    areaLight
-  ], ['cell3'])
+      // }),
+      areaLight
+    ],
+    ['cell3']
+  )
   // renderer.add(areaLightEntity)
 
-  gui.addParam('Elevation', State, 'elevation', { min: 0, max: 90 }, updateSunPosition)
-  gui.addParam('Azimuth', State, 'azimuth', { min: 0, max: 360 }, updateSunPosition)
+  gui.addParam(
+    'Elevation',
+    State,
+    'elevation',
+    { min: 0, max: 90 },
+    updateSunPosition
+  )
+  gui.addParam(
+    'Azimuth',
+    State,
+    'azimuth',
+    { min: 0, max: 360 },
+    updateSunPosition
+  )
   gui.addTexture2D('Shadow map', sun._shadowMap)
 
-  const skybox = State.skybox = renderer.skybox({
+  const skybox = (State.skybox = renderer.skybox({
     sunPosition: State.sunPosition
-  })
+  }))
 
   // currently this also includes light probe functionality
-  const reflectionProbe = State.reflectionProbe = renderer.reflectionProbe({
+  const reflectionProbe = (State.reflectionProbe = renderer.reflectionProbe({
     origin: [0, 0, 0],
     size: [10, 10, 10],
     boxProjection: false
-  })
+  }))
   gui.addTexture2D('ReflectionMap', reflectionProbe._reflectionMap)
 
   // renderer.add(renderer.entity([ light, renderer.transform({ position: [0.5, 0.5, 0.5]}) ])).name = 'light'
   // renderer.add(renderer.entity([ light2, renderer.transform({ position: [-0.5, 0.5, 0.5]}) ])).name = 'light2'
   // renderer.add(renderer.entity([ sun ])).name = 'sun'
-  renderer.add(renderer.entity([ skybox ])).name = 'skybox'
-  renderer.add(renderer.entity([ reflectionProbe ])).name = 'reflectionProbe'
+  renderer.add(renderer.entity([skybox])).name = 'skybox'
+  renderer.add(renderer.entity([reflectionProbe])).name = 'reflectionProbe'
 
   updateSunPosition()
 }
 
-function initCamera () {
-  const camera = createCamera({
+const cameraEntity = renderer.entity([
+  renderer.camera({
     fov: 0.8,
-    aspect: ctx.gl.drawingBufferWidth / ctx.gl.drawingBufferHeight,
-    position: [0.482, 0.258, 0.836],
-    target: [0, 0, 0],
+    aspect: window.innerWidth / window.innerHeight,
     near: 0.1,
     far: 100
+  }),
+  renderer.orbiter({
+    position: COMMON.initialPosition
+  }),
+  renderer.postProcessing({
+    fxaa: true,
+    // dof: true,
+    dofIterations: 1,
+    dofRange: 0.5,
+    dofRadius: 1,
+    dofDepth: 1.5,
+    ssao: true,
+    ssaoIntensity: 5,
+    ssaoRadius: 3,
+    ssaoBias: 0.02,
+    ssaoBlurRadius: 0.05, // 2
+    ssaoBlurSharpness: 10 // 10,
+    // ssaoRadius: 5,
   })
-  createOrbiter({ camera: camera })
-
-  renderer.add(renderer.entity([
-    renderer.camera({
-      camera: camera,
-      exposure: 1,
-      fxaa: true,
-      // dof: true,
-      dofIterations: 1,
-      dofRange: 0.5,
-      dofRadius: 1,
-      dofDepth: 1.5,
-      ssao: true,
-      ssaoIntensity: 5,
-      ssaoRadius: 3,
-      ssaoBias: 0.02,
-      ssaoBlurRadius: 0.05, // 2
-      ssaoBlurSharpness: 10// 10,
-      // ssaoRadius: 5,
-    })
-  ])).name = 'camera'
-}
+])
+renderer.add(cameraEntity)
 
 initSky()
-initCamera()
+
 let debugOnce = false
 
 window.addEventListener('keypress', (e) => {
@@ -256,18 +309,30 @@ window.addEventListener('keypress', (e) => {
   }
 })
 
+window.addEventListener('resize', () => {
+  const W = window.innerWidth
+  const H = window.innerHeight
+  ctx.set({
+    width: W,
+    height: H
+  })
+  cameraEntity.getComponent('Camera').set({
+    viewport: [0, 0, W, H]
+  })
+})
+
 var WebGLConstants = {
-  ELEMENT_ARRAY_BUFFER: 34963,  // 0x8893
-  ARRAY_BUFFER: 34962,          // 0x8892
-  UNSIGNED_SHORT: 5123,         // 0x1403
+  ELEMENT_ARRAY_BUFFER: 34963, // 0x8893
+  ARRAY_BUFFER: 34962, // 0x8892
+  UNSIGNED_SHORT: 5123, // 0x1403
   UNSIGNED_INT: 5125,
-  FLOAT: 5126,                  // 0x1406
-  TRIANGLES: 4,                 // 0x0004
-  SAMPLER_2D: 35678,            // 0x8B5E
-  FLOAT_VEC2: 35664,            // 0x8B50
-  FLOAT_VEC3: 35665,            // 0x8B51
-  FLOAT_VEC4: 35666,            // 0x8B52
-  FLOAT_MAT4: 35676             // 0x8B5C
+  FLOAT: 5126, // 0x1406
+  TRIANGLES: 4, // 0x0004
+  SAMPLER_2D: 35678, // 0x8B5E
+  FLOAT_VEC2: 35664, // 0x8B50
+  FLOAT_VEC3: 35665, // 0x8B51
+  FLOAT_VEC4: 35666, // 0x8B52
+  FLOAT_MAT4: 35676 // 0x8B5C
 }
 
 const AttributeSizeMap = {
@@ -289,7 +354,7 @@ const AttributeNameMap = {
   COLOR_0: 'vertexColors'
 }
 
-function handleBufferView (bufferView, bufferData) {
+function handleBufferView(bufferView, bufferData) {
   if (bufferView.byteOffset === undefined) bufferView.byteOffset = 0
   bufferView._data = bufferData.slice(
     bufferView.byteOffset,
@@ -303,7 +368,7 @@ function handleBufferView (bufferView, bufferData) {
   }
 }
 
-function handleAccessor (accessor, bufferView) {
+function handleAccessor(accessor, bufferView) {
   const size = AttributeSizeMap[accessor.type]
   if (accessor.byteOffset === undefined) accessor.byteOffset = 0
 
@@ -319,40 +384,52 @@ function handleAccessor (accessor, bufferView) {
   }
 
   if (accessor.componentType === WebGLConstants.UNSIGNED_SHORT) {
-    const data = new Uint16Array(bufferView._data.slice(
-      accessor.byteOffset,
-      accessor.byteOffset + accessor.count * size * 2
-    ))
+    const data = new Uint16Array(
+      bufferView._data.slice(
+        accessor.byteOffset,
+        accessor.byteOffset + accessor.count * size * 2
+      )
+    )
     accessor._data = data
   } else if (accessor.componentType === WebGLConstants.UNSIGNED_INT) {
-    const data = new Uint32Array(bufferView._data.slice(
-      accessor.byteOffset,
-      accessor.byteOffset + accessor.count * size * 4
-    ))
+    const data = new Uint32Array(
+      bufferView._data.slice(
+        accessor.byteOffset,
+        accessor.byteOffset + accessor.count * size * 4
+      )
+    )
     accessor.data = data
   } else if (accessor.componentType === WebGLConstants.FLOAT) {
-    const data = new Float32Array(bufferView._data.slice(
-      accessor.byteOffset,
-      accessor.byteOffset + accessor.count * size * 4
-    ))
+    const data = new Float32Array(
+      bufferView._data.slice(
+        accessor.byteOffset,
+        accessor.byteOffset + accessor.count * size * 4
+      )
+    )
     accessor._data = data
   } else if (accessor.componentType === WebGLConstants.FLOAT_VEC2) {
-    const data = new Float32Array(bufferView._data.slice(
-      accessor.byteOffset,
-      accessor.byteOffset + accessor.count * size * 4
-    ))
+    const data = new Float32Array(
+      bufferView._data.slice(
+        accessor.byteOffset,
+        accessor.byteOffset + accessor.count * size * 4
+      )
+    )
     accessor._data = data
   } else if (accessor.componentType === WebGLConstants.FLOAT_VEC3) {
-    const data = new Float32Array(bufferView._data.slice(
-      accessor.byteOffset,
-      accessor.byteOffset + accessor.count * size * 4
-    ))
+    const data = new Float32Array(
+      bufferView._data.slice(
+        accessor.byteOffset,
+        accessor.byteOffset + accessor.count * size * 4
+      )
+    )
     accessor._data = data
   } else if (accessor.componentType === WebGLConstants.FLOAT_VEC4) {
-    const data = new Float32Array(bufferView._data.slice(
-      accessor.byteOffset,
-      accessor.byteOffset + accessor.count * size * 4
-    ))
+    const data = new Float32Array(
+      bufferView._data.slice(
+        accessor.byteOffset,
+        accessor.byteOffset + accessor.count * size * 4
+      )
+    )
     accessor._data = data
   } else {
     // TODO
@@ -360,7 +437,7 @@ function handleAccessor (accessor, bufferView) {
   }
 }
 
-function handleImage (image, cb) {
+function handleImage(image, cb) {
   loadImage(image.uri, (err, img) => {
     if (err) return cb(err, null)
     image._img = img
@@ -369,13 +446,15 @@ function handleImage (image, cb) {
 }
 
 // TODO: add texture cache so we don't load the same texture twice
-function loadTexture (materialTexture, gltf, basePath, encoding, cb) {
+function loadTexture(materialTexture, gltf, basePath, encoding, cb) {
   let texture = gltf.textures[materialTexture.index]
   let image = gltf.images[texture.source]
-  let sampler = gltf.samplers ? gltf.samplers[texture.sampler] : {
-    minFilter: ctx.Filter.Linear,
-    magFilter: ctx.Filter.Linear
-  }
+  let sampler = gltf.samplers
+    ? gltf.samplers[texture.sampler]
+    : {
+        minFilter: ctx.Filter.Linear,
+        magFilter: ctx.Filter.Linear
+      }
   sampler.minFilter = ctx.Filter.LinearMipmapLinear
   // set defaults as per GLTF 2.0 spec
   if (!sampler.wrapS) sampler.wrapS = ctx.Wrap.Repeat
@@ -388,13 +467,22 @@ function loadTexture (materialTexture, gltf, basePath, encoding, cb) {
   let img = image._img
   // let url = path.join(basePath, image.uri)
   // loadImage(url, (err, img) => {
-    //if (err) return cb(err, null)
+  //if (err) return cb(err, null)
   if (!isPOT(img.width) || !isPOT(img.height)) {
     // FIXME: this is WebGL1 limitation
-    if (sampler.wrapS !== ctx.Wrap.Clamp || sampler.wrapT !== ctx.Wrap.Clamp || (sampler.minFilter !== ctx.Filter.Nearest && sampler.minFilter !== ctx.Filter.Linear)) {
+    if (
+      sampler.wrapS !== ctx.Wrap.Clamp ||
+      sampler.wrapT !== ctx.Wrap.Clamp ||
+      (sampler.minFilter !== ctx.Filter.Nearest &&
+        sampler.minFilter !== ctx.Filter.Linear)
+    ) {
       const nw = nextPOT(img.width)
       const nh = nextPOT(img.height)
-      console.log(`Warning: NPOT Repeat Wrap mode and mipmapping is not supported for NPOT Textures. Resizing... ${img.width}x${img.height} -> ${nw}x${nh}`)
+      console.log(
+        `Warning: NPOT Repeat Wrap mode and mipmapping is not supported for NPOT Textures. Resizing... ${
+          img.width
+        }x${img.height} -> ${nw}x${nh}`
+      )
       var canvas2d = document.createElement('canvas')
       canvas2d.width = nw
       canvas2d.height = nh
@@ -405,7 +493,7 @@ function loadTexture (materialTexture, gltf, basePath, encoding, cb) {
   }
   // console.log(`min: ${WebGLDebugUtils.glEnumToString(sampler.minFilter)} mag: ${WebGLDebugUtils.glEnumToString(sampler.magFilter)}`)
   // console.log('mag', img.width)
-  var tex = texture._tex = ctx.texture2D({
+  var tex = (texture._tex = ctx.texture2D({
     data: img,
     width: img.width,
     height: img.height,
@@ -417,15 +505,18 @@ function loadTexture (materialTexture, gltf, basePath, encoding, cb) {
     mag: sampler.magFilter,
     mipmap: true,
     flipY: false // this is confusing as
-  })
-  if (sampler.minFilter !== ctx.Filter.Nearest && sampler.minFilter !== ctx.Filter.Linear) {
+  }))
+  if (
+    sampler.minFilter !== ctx.Filter.Nearest &&
+    sampler.minFilter !== ctx.Filter.Linear
+  ) {
     ctx.update(tex, { mipmap: true })
   }
   cb(null, tex)
-// })
+  // })
 }
 
-function handleMaterial (material, gltf, basePath) {
+function handleMaterial(material, gltf, basePath) {
   const materialCmp = renderer.material({
     baseColor: [1, 1, 1, 1.0],
     roughness: 1.0,
@@ -438,16 +529,28 @@ function handleMaterial (material, gltf, basePath) {
   const pbrMetallicRoughness = material.pbrMetallicRoughness
   if (pbrMetallicRoughness) {
     if (pbrMetallicRoughness.baseColorTexture) {
-      loadTexture(pbrMetallicRoughness.baseColorTexture, gltf, basePath, ctx.Encoding.SRGB, (err, tex) => {
-        if (err) throw err
-        materialCmp.set({ baseColorMap: tex })
-      })
+      loadTexture(
+        pbrMetallicRoughness.baseColorTexture,
+        gltf,
+        basePath,
+        ctx.Encoding.SRGB,
+        (err, tex) => {
+          if (err) throw err
+          materialCmp.set({ baseColorMap: tex })
+        }
+      )
     }
     if (pbrMetallicRoughness.metallicRoughnessTexture) {
-      loadTexture(pbrMetallicRoughness.metallicRoughnessTexture, gltf, basePath, ctx.Encoding.Linear, (err, tex) => {
-        if (err) throw err
-        materialCmp.set({ metallicRoughnessMap: tex })
-      })
+      loadTexture(
+        pbrMetallicRoughness.metallicRoughnessTexture,
+        gltf,
+        basePath,
+        ctx.Encoding.Linear,
+        (err, tex) => {
+          if (err) throw err
+          materialCmp.set({ metallicRoughnessMap: tex })
+        }
+      )
     }
     if (pbrMetallicRoughness.baseColorFactor !== undefined) {
       materialCmp.set({ baseColor: pbrMetallicRoughness.baseColorFactor })
@@ -460,19 +563,33 @@ function handleMaterial (material, gltf, basePath) {
     }
   }
 
-  const pbrSpecularGlossiness = material.extensions ? material.extensions.KHR_materials_pbrSpecularGlossiness : null
+  const pbrSpecularGlossiness = material.extensions
+    ? material.extensions.KHR_materials_pbrSpecularGlossiness
+    : null
   if (pbrSpecularGlossiness) {
     if (pbrSpecularGlossiness.diffuseTexture) {
-      loadTexture(pbrSpecularGlossiness.diffuseTexture, gltf, basePath, ctx.Encoding.SRGB, (err, tex) => {
-        if (err) throw err
-        materialCmp.set({ diffuseMap: tex })
-      })
+      loadTexture(
+        pbrSpecularGlossiness.diffuseTexture,
+        gltf,
+        basePath,
+        ctx.Encoding.SRGB,
+        (err, tex) => {
+          if (err) throw err
+          materialCmp.set({ diffuseMap: tex })
+        }
+      )
     }
     if (pbrSpecularGlossiness.specularGlossinessTexture) {
-      loadTexture(pbrSpecularGlossiness.specularGlossinessTexture, gltf, basePath, ctx.Encoding.SRGB, (err, tex) => {
-        if (err) throw err
-        materialCmp.set({ specularGlossinessMap: tex })
-      })
+      loadTexture(
+        pbrSpecularGlossiness.specularGlossinessTexture,
+        gltf,
+        basePath,
+        ctx.Encoding.SRGB,
+        (err, tex) => {
+          if (err) throw err
+          materialCmp.set({ specularGlossinessMap: tex })
+        }
+      )
     }
     if (pbrSpecularGlossiness.diffuseFactor !== undefined) {
       materialCmp.set({ diffuse: pbrSpecularGlossiness.diffuseFactor })
@@ -485,61 +602,80 @@ function handleMaterial (material, gltf, basePath) {
       materialCmp.set({ glossiness: 1 })
     }
     if (pbrSpecularGlossiness.specularFactor !== undefined) {
-      materialCmp.set({ specular: pbrSpecularGlossiness.specularFactor.slice(0, 3) })
+      materialCmp.set({
+        specular: pbrSpecularGlossiness.specularFactor.slice(0, 3)
+      })
     } else {
       materialCmp.set({ specular: [1, 1, 1] })
     }
   }
 
   if (material.normalTexture) {
-    loadTexture(material.normalTexture, gltf, basePath, ctx.Encoding.Linear, (err, tex) => {
-      if (err) throw err
-      materialCmp.set({ normalMap: tex })
-    })
+    loadTexture(
+      material.normalTexture,
+      gltf,
+      basePath,
+      ctx.Encoding.Linear,
+      (err, tex) => {
+        if (err) throw err
+        materialCmp.set({ normalMap: tex })
+      }
+    )
   }
 
   if (material.emissiveFactor) {
-      materialCmp.set({ emissiveColor: [
+    materialCmp.set({
+      emissiveColor: [
         material.emissiveFactor[0],
         material.emissiveFactor[1],
         material.emissiveFactor[2],
         1
-      ]})
+      ]
+    })
   }
 
   if (material.emissiveTexture) {
     // TODO: double check sRGB
-    loadTexture(material.emissiveTexture, gltf, basePath, ctx.Encoding.SRGB, (err, tex) => {
-      if (err) throw err
-      materialCmp.set({ emissiveColorMap: tex })
-    })
+    loadTexture(
+      material.emissiveTexture,
+      gltf,
+      basePath,
+      ctx.Encoding.SRGB,
+      (err, tex) => {
+        if (err) throw err
+        materialCmp.set({ emissiveColorMap: tex })
+      }
+    )
   }
 
   return materialCmp
 }
 
-function handleMesh (mesh, gltf, basePath) {
+function handleMesh(mesh, gltf, basePath) {
   return mesh.primitives.map((primitive) => {
-    const attributes = Object.keys(primitive.attributes).reduce((attributes, name) => {
-      const accessor = gltf.accessors[primitive.attributes[name]]
-      // TODO: add stride support (requires update to pex-render/geometry
-      if (accessor._buffer) {
-        const attributeName = AttributeNameMap[name]
+    const attributes = Object.keys(primitive.attributes).reduce(
+      (attributes, name) => {
+        const accessor = gltf.accessors[primitive.attributes[name]]
+        // TODO: add stride support (requires update to pex-render/geometry
+        if (accessor._buffer) {
+          const attributeName = AttributeNameMap[name]
 
-        assert(attributeName, `GLTF: Unknown attribute '${name}'`)
-        attributes[attributeName] = {
-          buffer: accessor._buffer,
-          offset: accessor.byteOffset,
-          type: accessor.componentType,
-          stride: accessor._bufferView.stride
+          assert(attributeName, `GLTF: Unknown attribute '${name}'`)
+          attributes[attributeName] = {
+            buffer: accessor._buffer,
+            offset: accessor.byteOffset,
+            type: accessor.componentType,
+            stride: accessor._bufferView.stride
+          }
+        } else {
+          const attributeName = AttributeNameMap[name]
+          assert(attributeName, `GLTF: Unknown attribute '${name}'`)
+          attributes[attributeName] = accessor._data
         }
-      } else {
-        const attributeName = AttributeNameMap[name]
-        assert(attributeName, `GLTF: Unknown attribute '${name}'`)
-        attributes[attributeName] = accessor._data
-      }
-      return attributes
-    }, {})
+        return attributes
+      },
+      {}
+    )
 
     console.log('handleMesh.attributes', attributes)
 
@@ -583,18 +719,15 @@ function handleMesh (mesh, gltf, basePath) {
     } else {
       materialCmp = renderer.material({})
     }
-      // materialCmp = renderer.material({
-        // roughness: 0.1,
-        // metallic: 0,
-        // baseColor: [1, 0.2, 0.2, 1],
-        // castShadows: true,
-        // receiveShadows: true
-      // })
+    // materialCmp = renderer.material({
+    // roughness: 0.1,
+    // metallic: 0,
+    // baseColor: [1, 0.2, 0.2, 1],
+    // castShadows: true,
+    // receiveShadows: true
+    // })
 
-    let components = [
-      geometryCmp,
-      materialCmp
-    ]
+    let components = [geometryCmp, materialCmp]
 
     if (primitive.targets) {
       let targets = primitive.targets.map((target) => {
@@ -612,7 +745,7 @@ function handleMesh (mesh, gltf, basePath) {
   })
 }
 
-function handleNode (node, gltf, basePath, i) {
+function handleNode(node, gltf, basePath, i) {
   const transform = {
     position: node.translation || [0, 0, 0],
     rotation: node.rotation || [0, 0, 0, 1],
@@ -621,10 +754,8 @@ function handleNode (node, gltf, basePath, i) {
   if (node.matrix) transform.matrix = node.matrix
   const transformCmp = renderer.transform(transform)
 
-  node.entity = renderer.add(renderer.entity([
-    transformCmp
-  ]))
-  node.entity.name = node.name || ('node_' + i)
+  node.entity = renderer.add(renderer.entity([transformCmp]))
+  node.entity.name = node.name || 'node_' + i
 
   let skinCmp = null
   if (node.skin !== undefined) {
@@ -667,7 +798,7 @@ function handleNode (node, gltf, basePath, i) {
   return node.entity
 }
 
-function buildHierarchy (nodes, gltf) {
+function buildHierarchy(nodes, gltf) {
   nodes.forEach((node, index) => {
     let parent = nodes[index]
     if (!parent || !parent.entity) return // TEMP: for debuggin only, child should always exist
@@ -707,18 +838,18 @@ function buildHierarchy (nodes, gltf) {
   })
 }
 
-function handleBuffer (buffer, cb) {
+function handleBuffer(buffer, cb) {
   if (!buffer.uri) {
     cb(new Error('gltf buffer.uri does not exist'))
     return
   }
-  loadBinary(buffer.uri, function (err, data) {
+  loadBinary(buffer.uri, function(err, data) {
     buffer._data = data
     cb(err, data)
   })
 }
 
-function handleAnimation (animation, gltf) {
+function handleAnimation(animation, gltf) {
   const channels = animation.channels.map((channel) => {
     const sampler = animation.samplers[channel.sampler]
     const input = gltf.accessors[sampler.input]
@@ -764,12 +895,13 @@ function handleAnimation (animation, gltf) {
   return animationCmp
 }
 
-function loadScreenshot (name, cb) {
+function loadScreenshot(name, cb) {
   const extensions = ['jpg']
 
-  function tryNextExt () {
+  function tryNextExt() {
     const ext = extensions.shift()
-    if (!ext) return cb(new Error('Failed to load screenshot for ' + name), null)
+    if (!ext)
+      return cb(new Error('Failed to load screenshot for ' + name), null)
     const url = `assets/glTF-Sample-Models/2.0/${name}/screenshot/screenshot.${ext}`
     console.log('trying to load ' + url)
     loadImage(url, (err, img) => {
@@ -782,14 +914,17 @@ function loadScreenshot (name, cb) {
 }
 
 let model = 'FlightHelmet'
-loadScene(`../assets/${model}/glTF/${model}.gltf`, onSceneLoaded)
+// loadScene(`../assets/${model}/glTF/${model}.gltf`, onSceneLoaded)
+loadScene(COMMON.modelUrl, onSceneLoaded)
 
-function aabbToString (aabb) {
+function aabbToString(aabb) {
   if (AABB.isEmpty(aabb)) return '[]'
-  return `[${aabb.map((v) => v.map((f) => f.toFixed(2)).join(', ')).join(', ')}]`
+  return `[${aabb
+    .map((v) => v.map((f) => f.toFixed(2)).join(', '))
+    .join(', ')}]`
 }
 
-function onSceneLoaded (err, scene) {
+function onSceneLoaded(err, scene) {
   if (!State.loadAll) {
     while (State.scenes.length) {
       const oldScene = State.scenes.shift()
@@ -802,7 +937,7 @@ function onSceneLoaded (err, scene) {
   } else {
     var i = State.scenes.length
     var x = 2 * (i % 7) - 7
-    var z = 2 * (Math.floor(i / 7)) - 7
+    var z = 2 * Math.floor(i / 7) - 7
     if (!State.loadAll) {
       x = z = 0
     }
@@ -813,7 +948,7 @@ function onSceneLoaded (err, scene) {
   }
 }
 
-function loadScene (file, cb) {
+function loadScene(file, cb) {
   console.log('loadModel', file)
 
   loadJSON(file, (err, gltf) => {
@@ -829,141 +964,154 @@ function loadScene (file, cb) {
         image.uri = path.join(basePath, image.uri).replace(/%/g, '%25')
       })
     }
-    async.map(gltf.buffers, handleBuffer, function (err, res) {
-    async.map(gltf.images, handleImage, function (err, res) {
-      if (err) throw new Error(err)
+    async.map(gltf.buffers, handleBuffer, function(err, res) {
+      async.map(gltf.images, handleImage, function(err, res) {
+        if (err) throw new Error(err)
 
-      gltf.bufferViews.map((bufferView) => {
-        handleBufferView(bufferView, gltf.buffers[bufferView.buffer]._data)
-      })
-
-      gltf.accessors.map((accessor) => {
-        handleAccessor(accessor, gltf.bufferViews[accessor.bufferView])
-      })
-
-      const scene = {
-        root: null,
-        entities: null
-      }
-
-      scene.root = renderer.add(renderer.entity())
-      scene.root.name = 'sceneRoot'
-      scene.entities = gltf.nodes.reduce((entities, node, i) => {
-        const result = handleNode(node, gltf, basePath, i)
-        if (result.length) {
-          result.forEach((primitive) => entities.push(primitive))
-        } else {
-          entities.push(result)
-        }
-        return entities
-      }, [])
-
-      buildHierarchy(gltf.nodes, gltf)
-
-      scene.entities.forEach((e) => {
-        if (e.transform.parent === renderer.root.transform) {
-          console.log('attaching to scene root', e)
-          e.transform.set({ parent: scene.root.transform })
-        }
-      })
-
-      // prune non geometry nodes (cameras, lights, etc) from the hierarchy
-      scene.entities.forEach((e) => {
-        if (e.getComponent('Geometry')) {
-          e.used = true
-          while (e.transform.parent) {
-            e = e.transform.parent.entity
-            e.used = true
-          }
-        }
-      })
-
-      if (gltf.animations) {
-        gltf.animations.map((animation) => {
-          const animationComponent = handleAnimation(animation, gltf)
-          scene.root.addComponent(animationComponent)
+        gltf.bufferViews.map((bufferView) => {
+          handleBufferView(bufferView, gltf.buffers[bufferView.buffer]._data)
         })
-      }
 
-      if (gltf.skins) {
-        gltf.skins.forEach((skin) => {
-          skin.joints.forEach((jointIndex) => {
-            let e = scene.entities[jointIndex]
+        gltf.accessors.map((accessor) => {
+          handleAccessor(accessor, gltf.bufferViews[accessor.bufferView])
+        })
+
+        const scene = {
+          root: null,
+          entities: null
+        }
+
+        scene.root = renderer.add(renderer.entity())
+        scene.root.name = 'sceneRoot'
+        scene.entities = gltf.nodes.reduce((entities, node, i) => {
+          const result = handleNode(node, gltf, basePath, i)
+          if (result.length) {
+            result.forEach((primitive) => entities.push(primitive))
+          } else {
+            entities.push(result)
+          }
+          return entities
+        }, [])
+
+        buildHierarchy(gltf.nodes, gltf)
+
+        scene.entities.forEach((e) => {
+          if (e.transform.parent === renderer.root.transform) {
+            console.log('attaching to scene root', e)
+            e.transform.set({ parent: scene.root.transform })
+          }
+        })
+
+        // prune non geometry nodes (cameras, lights, etc) from the hierarchy
+        scene.entities.forEach((e) => {
+          if (e.getComponent('Geometry')) {
             e.used = true
             while (e.transform.parent) {
               e = e.transform.parent.entity
               e.used = true
             }
-          })
+          }
         })
-      }
-      // State.entities = State.entities.filter((e) => {
-        // if (!e.used) renderer.remove(e)
-        // return e.used
-      // })
-      console.log('entities pruned', State.entities)
 
-      renderer.update() // refresh scene hierarchy
-
-      const sceneBounds = scene.root.transform.worldBounds
-      const sceneSize = AABB.size(scene.root.transform.worldBounds)
-      const sceneCenter = AABB.center(scene.root.transform.worldBounds)
-      const sceneScale = 1 / (Math.max(sceneSize[0], Math.max(sceneSize[1], sceneSize[2])) || 1)
-      if (!AABB.isEmpty(sceneBounds)) {
-        // scene.root.transform.set({
-          // position: Vec3.scale([-sceneCenter[0], -sceneBounds[0][1], -sceneCenter[2]], sceneScale),
-          // scale: [sceneScale, sceneScale, sceneScale]
-        // })
-      }
-
-      renderer.update() // refresh scene hierarchy
-
-      scene.entities.push(scene.root)
-
-      function printEntity (e, level, s) {
-        s = s || ''
-        level = '  ' + (level || '')
-        var g = e.getComponent('Geometry')
-        s += level + (e.name || 'child') + ' ' + aabbToString(e.transform.worldBounds) + ' ' + aabbToString(e.transform.bounds) + ' ' + (g ? aabbToString(g.bounds) : '') + '\n'
-        if (e.transform) {
-          e.transform.children.forEach((c) => {
-            s = printEntity(c.entity, level, s)
+        if (gltf.animations) {
+          gltf.animations.map((animation) => {
+            const animationComponent = handleAnimation(animation, gltf)
+            scene.root.addComponent(animationComponent)
           })
         }
-        return s
-      }
 
-      const showBoundingBoxes = false
-      if (showBoundingBoxes) {
-        const bboxes = scene.entities.map((e) => {
-          var size = AABB.size(e.transform.worldBounds)
-          var center = AABB.center(e.transform.worldBounds)
-
-          const bbox = renderer.add(renderer.entity([
-            renderer.transform({
-              scale: size,
-              position: center
-            }),
-            renderer.geometry(box),
-            renderer.material({
-              baseColor: [1, 0, 0, 1]
+        if (gltf.skins) {
+          gltf.skins.forEach((skin) => {
+            skin.joints.forEach((jointIndex) => {
+              let e = scene.entities[jointIndex]
+              e.used = true
+              while (e.transform.parent) {
+                e = e.transform.parent.entity
+                e.used = true
+              }
             })
-          ]))
-          bbox.name = e.name + '_bbox'
-          return bbox
-        }).filter((e) => e)
-        scene.entities = scene.entities.concat(bboxes)
-      }
+          })
+        }
+        // State.entities = State.entities.filter((e) => {
+        // if (!e.used) renderer.remove(e)
+        // return e.used
+        // })
+        console.log('entities pruned', State.entities)
 
-      cb(null, scene)
-    })
+        renderer.update() // refresh scene hierarchy
+
+        const sceneBounds = scene.root.transform.worldBounds
+        const sceneSize = AABB.size(scene.root.transform.worldBounds)
+        const sceneCenter = AABB.center(scene.root.transform.worldBounds)
+        const sceneScale =
+          1 /
+          (Math.max(sceneSize[0], Math.max(sceneSize[1], sceneSize[2])) || 1)
+        if (!AABB.isEmpty(sceneBounds)) {
+          // scene.root.transform.set({
+          // position: Vec3.scale([-sceneCenter[0], -sceneBounds[0][1], -sceneCenter[2]], sceneScale),
+          // scale: [sceneScale, sceneScale, sceneScale]
+          // })
+        }
+
+        renderer.update() // refresh scene hierarchy
+
+        scene.entities.push(scene.root)
+
+        function printEntity(e, level, s) {
+          s = s || ''
+          level = '  ' + (level || '')
+          var g = e.getComponent('Geometry')
+          s +=
+            level +
+            (e.name || 'child') +
+            ' ' +
+            aabbToString(e.transform.worldBounds) +
+            ' ' +
+            aabbToString(e.transform.bounds) +
+            ' ' +
+            (g ? aabbToString(g.bounds) : '') +
+            '\n'
+          if (e.transform) {
+            e.transform.children.forEach((c) => {
+              s = printEntity(c.entity, level, s)
+            })
+          }
+          return s
+        }
+
+        const showBoundingBoxes = false
+        if (showBoundingBoxes) {
+          const bboxes = scene.entities
+            .map((e) => {
+              var size = AABB.size(e.transform.worldBounds)
+              var center = AABB.center(e.transform.worldBounds)
+
+              const bbox = renderer.add(
+                renderer.entity([
+                  renderer.transform({
+                    scale: size,
+                    position: center
+                  }),
+                  renderer.geometry(box),
+                  renderer.material({
+                    baseColor: [1, 0, 0, 1]
+                  })
+                ])
+              )
+              bbox.name = e.name + '_bbox'
+              return bbox
+            })
+            .filter((e) => e)
+          scene.entities = scene.entities.concat(bboxes)
+        }
+
+        cb(null, scene)
+      })
     })
   })
 }
 
-const panoramaUrl = '../assets/Pisa/pisa.hdr'
-
-loadBinary(panoramaUrl, (err, buf) => {
+loadBinary(COMMON.panoramaUrl, (err, buf) => {
   const hdrImg = parseHdr(buf)
   const panorama = ctx.texture2D({
     data: hdrImg.data,
@@ -974,13 +1122,13 @@ loadBinary(panoramaUrl, (err, buf) => {
     flipY: true
   })
   const data = new Uint8Array(hdrImg.data.length)
-  for (var i = 0; i < hdrImg.data.length; i+=4) {
+  for (var i = 0; i < hdrImg.data.length; i += 4) {
     let r = hdrImg.data[i]
     let g = hdrImg.data[i + 1]
     let b = hdrImg.data[i + 2]
-    r = 1 / 7 * Math.sqrt(r)
-    g = 1 / 7 * Math.sqrt(g)
-    b = 1 / 7 * Math.sqrt(b)
+    r = (1 / 7) * Math.sqrt(r)
+    g = (1 / 7) * Math.sqrt(g)
+    b = (1 / 7) * Math.sqrt(b)
     let a = Math.max(r, Math.max(g, b))
     if (a > 1) a = 1
     if (a < 1 / 255) a = 1 / 155
@@ -1004,67 +1152,73 @@ loadBinary(panoramaUrl, (err, buf) => {
   State.reflectionProbe.set({ dirty: true })
 })
 
-var xAxis = renderer.add(renderer.entity([
-  renderer.geometry(createCube(0.4, 0.003, 0.003)),
-  renderer.transform({
-    position: [0.2, 0, 0]
-  }),
-  renderer.material({
-    baseColor: [0, 0, 0, 1],
-    emissiveColor: [1, 0, 0, 1]
-  })
-]))
+var xAxis = renderer.add(
+  renderer.entity([
+    renderer.geometry(createCube(0.4, 0.003, 0.003)),
+    renderer.transform({
+      position: [0.2, 0, 0]
+    }),
+    renderer.material({
+      baseColor: [0, 0, 0, 1],
+      emissiveColor: [1, 0, 0, 1]
+    })
+  ])
+)
 
-var yAxis = renderer.add(renderer.entity([
-  renderer.geometry(createCube(0.003, 0.4, 0.003)),
-  renderer.transform({
-    position: [0, 0.2, 0]
-  }),
-  renderer.material({
-    baseColor: [0, 0, 0, 1],
-    emissiveColor: [0, 1, 0, 1]
-  })
-]))
+var yAxis = renderer.add(
+  renderer.entity([
+    renderer.geometry(createCube(0.003, 0.4, 0.003)),
+    renderer.transform({
+      position: [0, 0.2, 0]
+    }),
+    renderer.material({
+      baseColor: [0, 0, 0, 1],
+      emissiveColor: [0, 1, 0, 1]
+    })
+  ])
+)
 
-var zAxis = renderer.add(renderer.entity([
-  renderer.geometry(createCube(0.003, 0.003, 0.4)),
-  renderer.transform({
-    position: [0, 0, 0.2]
-  }),
-  renderer.material({
-    baseColor: [0, 0, 0, 1],
-    emissiveColor: [0, 0, 1, 1]
-  })
-]))
+var zAxis = renderer.add(
+  renderer.entity([
+    renderer.geometry(createCube(0.003, 0.003, 0.4)),
+    renderer.transform({
+      position: [0, 0, 0.2]
+    }),
+    renderer.material({
+      baseColor: [0, 0, 0, 1],
+      emissiveColor: [0, 0, 1, 1]
+    })
+  ])
+)
 // loadBinary('assets/envmaps/Footprint_Court/Footprint_Court_Env.hdr', (err, buf) => {
 // loadBinary('assets/envmaps/Factory_Catwalk/Factory_Catwalk_Env.hdr', (err, buf) => {
 // loadBinary('assets/envmaps/Mono_Lake_B/Mono_Lake_B_Env.hdr', (err, buf) => {
 // loadBinary('assets/envmaps/grace-new/grace-new.hdr', (err, buf) => {
 // loadBinary('assets/envmaps/hdrihaven/preller_drive_2k.hdr', (err, buf) => {
-  // const hdrImg = parseHdr(buf)
-  // const panorama = ctx.texture2D({
-    // data: hdrImg.data,
-    // width: hdrImg.shape[0],
-    // height: hdrImg.shape[1],
-    // encoding: ctx.Encoding.Linear,
-    // pixelFormat: ctx.PixelFormat.RGBA32F,
-    // min: ctx.Filter.Linear,
-    // mag: ctx.Filter.Linear,
-    // flipY: true
-  // })
-  // State.skybox.set({ diffuseTexture: panorama })
+// const hdrImg = parseHdr(buf)
+// const panorama = ctx.texture2D({
+// data: hdrImg.data,
+// width: hdrImg.shape[0],
+// height: hdrImg.shape[1],
+// encoding: ctx.Encoding.Linear,
+// pixelFormat: ctx.PixelFormat.RGBA32F,
+// min: ctx.Filter.Linear,
+// mag: ctx.Filter.Linear,
+// flipY: true
+// })
+// State.skybox.set({ diffuseTexture: panorama })
 // })
 
 // const floor = renderer.entity([
-  // renderer.transform({
-    // position: [0, -0.05, 0]
-  // }),
-  // renderer.geometry(createCube(5, 0.1, 5)),
-  // renderer.material({
-    // baseColor: [0.5, 0.5, 0.5, 1],
-    // castShadows: true,
-    // receiveShadows: true
-  // })
+// renderer.transform({
+// position: [0, -0.05, 0]
+// }),
+// renderer.geometry(createCube(5, 0.1, 5)),
+// renderer.material({
+// baseColor: [0.5, 0.5, 0.5, 1],
+// castShadows: true,
+// receiveShadows: true
+// })
 // ])
 // renderer.add(floor)
 // floor.name = 'floor'
@@ -1124,27 +1278,99 @@ ctx.frame(() => {
   if (State.body) {
     var worldMatrix = State.body.transform.worldMatrix
     var skin = State.body.getComponent('Skin')
-    function addPointLine (i, j) {
+    function addPointLine(i, j) {
       var p = [
         State.positions[i * 3],
         State.positions[i * 3 + 1],
         State.positions[i * 3 + 2]
       ]
       var np = [0, 0, 0]
-      Vec3.add(np, Vec3.scale(Vec3.multMat4(Vec3.copy(p), skin.jointMatrices[State.joints[i * 4 + 0]]), State.weights[i * 4 + 0]))
-      Vec3.add(np, Vec3.scale(Vec3.multMat4(Vec3.copy(p), skin.jointMatrices[State.joints[i * 4 + 1]]), State.weights[i * 4 + 1]))
-      Vec3.add(np, Vec3.scale(Vec3.multMat4(Vec3.copy(p), skin.jointMatrices[State.joints[i * 4 + 2]]), State.weights[i * 4 + 2]))
-      Vec3.add(np, Vec3.scale(Vec3.multMat4(Vec3.copy(p), skin.jointMatrices[State.joints[i * 4 + 3]]), State.weights[i * 4 + 3]))
+      Vec3.add(
+        np,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(p),
+            skin.jointMatrices[State.joints[i * 4 + 0]]
+          ),
+          State.weights[i * 4 + 0]
+        )
+      )
+      Vec3.add(
+        np,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(p),
+            skin.jointMatrices[State.joints[i * 4 + 1]]
+          ),
+          State.weights[i * 4 + 1]
+        )
+      )
+      Vec3.add(
+        np,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(p),
+            skin.jointMatrices[State.joints[i * 4 + 2]]
+          ),
+          State.weights[i * 4 + 2]
+        )
+      )
+      Vec3.add(
+        np,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(p),
+            skin.jointMatrices[State.joints[i * 4 + 3]]
+          ),
+          State.weights[i * 4 + 3]
+        )
+      )
       var q = [
         State.positions[j * 3],
         State.positions[j * 3 + 1],
         State.positions[j * 3 + 2]
       ]
       var nq = [0, 0, 0]
-      Vec3.add(nq, Vec3.scale(Vec3.multMat4(Vec3.copy(q), skin.jointMatrices[State.joints[j * 4 + 0]]), State.weights[j * 4 + 0]))
-      Vec3.add(nq, Vec3.scale(Vec3.multMat4(Vec3.copy(q), skin.jointMatrices[State.joints[j * 4 + 1]]), State.weights[j * 4 + 1]))
-      Vec3.add(nq, Vec3.scale(Vec3.multMat4(Vec3.copy(q), skin.jointMatrices[State.joints[j * 4 + 2]]), State.weights[j * 4 + 2]))
-      Vec3.add(nq, Vec3.scale(Vec3.multMat4(Vec3.copy(q), skin.jointMatrices[State.joints[j * 4 + 3]]), State.weights[j * 4 + 3]))
+      Vec3.add(
+        nq,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(q),
+            skin.jointMatrices[State.joints[j * 4 + 0]]
+          ),
+          State.weights[j * 4 + 0]
+        )
+      )
+      Vec3.add(
+        nq,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(q),
+            skin.jointMatrices[State.joints[j * 4 + 1]]
+          ),
+          State.weights[j * 4 + 1]
+        )
+      )
+      Vec3.add(
+        nq,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(q),
+            skin.jointMatrices[State.joints[j * 4 + 2]]
+          ),
+          State.weights[j * 4 + 2]
+        )
+      )
+      Vec3.add(
+        nq,
+        Vec3.scale(
+          Vec3.multMat4(
+            Vec3.copy(q),
+            skin.jointMatrices[State.joints[j * 4 + 3]]
+          ),
+          State.weights[j * 4 + 3]
+        )
+      )
 
       if (pp && pq) {
         // positions.length = 0

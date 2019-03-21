@@ -1,125 +1,131 @@
-var style = document.createElement('style')
-style.innerHTML = `
-body { margin: 0; }
-canvas { width: 100%; height: 100% }
-`
-document.head.appendChild(style)
+import COMMON from '../common.js'
 
-var container = document.createElement('div')
-container.id = 'container'
-document.body.appendChild(container)
+import * as THREE from 'three'
 
-var THREE = require('three')
-var OrbitControls = require('three-orbit-controls')(THREE)
-var GLTFLoader = require('three-gltf-loader')
-var EquirectangularToCubemap = require('three.equirectangular-to-cubemap')
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+
 window.THREE = THREE
-require('./loaders/HDRCubeTextureLoader')
-require('./loaders/RGBELoader')
-require('./pmrem/PMREMGenerator')
-require('./pmrem/PMREMCubeUVPacker')
+require('three/examples/js/loaders/HDRCubeTextureLoader')
+require('three/examples/js/loaders/RGBELoader')
+require('three/examples/js/pmrem/PMREMGenerator')
+require('three/examples/js/pmrem/PMREMCubeUVPacker')
 
-var renderer = new THREE.WebGLRenderer({ antialias: true })
+COMMON.addLabel('three.js')
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  canvas: COMMON.canvas
+})
 renderer.setPixelRatio(window.devicePixelRatio)
 renderer.setSize(window.innerWidth, window.innerHeight)
+renderer.gammaInput = true
 renderer.gammaOutput = true
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
-container.appendChild(renderer.domElement)
 
-var scene = new THREE.Scene()
-scene.background = new THREE.Color(0x222222)
-var camera = new THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.001, 100)
-var orbitControls = new OrbitControls(camera, renderer.domElement)
-camera.position.set(0.482, 0.2588, 0.836)
+const scene = new THREE.Scene()
+
+const camera = new THREE.PerspectiveCamera(
+  COMMON.fov,
+  window.innerWidth / window.innerHeight,
+  COMMON.near,
+  COMMON.far
+)
+
+const orbitControls = new OrbitControls(camera, renderer.domElement)
+camera.position.set(...COMMON.initialPosition)
 orbitControls.update()
 
-var xAxis = new THREE.Mesh(
-  new THREE.BoxGeometry( 0.4, 0.003, 0.003 ),
-  new THREE.MeshBasicMaterial( {color: 0xff0000} )
-);
+const xAxis = new THREE.Mesh(
+  new THREE.BoxGeometry(0.4, 0.003, 0.003),
+  new THREE.MeshBasicMaterial({ color: 0xff0000 })
+)
 xAxis.position.set(0.2, 0, 0)
-scene.add( xAxis );
+scene.add(xAxis)
 
-var yAxis = new THREE.Mesh(
-  new THREE.BoxGeometry( 0.003, 0.4, 0.003 ),
-  new THREE.MeshBasicMaterial( {color: 0x00FF00} )
-);
+const yAxis = new THREE.Mesh(
+  new THREE.BoxGeometry(0.003, 0.4, 0.003),
+  new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+)
 yAxis.position.set(0, 0.2, 0)
-scene.add( yAxis );
+scene.add(yAxis)
 
-var zAxis = new THREE.Mesh(
-  new THREE.BoxGeometry( 0.003, 0.003, 0.4 ),
-  new THREE.MeshBasicMaterial( {color: 0x0000FF} )
-);
+const zAxis = new THREE.Mesh(
+  new THREE.BoxGeometry(0.003, 0.003, 0.4),
+  new THREE.MeshBasicMaterial({ color: 0x0000ff })
+)
 zAxis.position.set(0, 0, 0.2)
-scene.add( zAxis );
+scene.add(zAxis)
 
-var genCubeUrls = function (prefix, postfix) {
-  return [
-    prefix + 'px' + postfix, prefix + 'nx' + postfix,
-    prefix + 'py' + postfix, prefix + 'ny' + postfix,
-    prefix + 'pz' + postfix, prefix + 'nz' + postfix
-  ]
-}
+const hdrCubeTextureLoader = new THREE.HDRCubeTextureLoader()
+hdrCubeTextureLoader
+  .setPath(COMMON.panoramaBasePath)
+  .load(
+    THREE.UnsignedByteType,
+    ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'],
+    (hdrCubeMap) => {
+      const pmremGenerator = new THREE.PMREMGenerator(hdrCubeMap)
+      pmremGenerator.update(renderer)
 
-var cubemapUrl = '../assets/Pisa/three/'
-var hdrUrls = genCubeUrls(cubemapUrl, '.hdr')
-var hdrCubeRenderTarget = null
+      const pmremCubeUVPacker = new THREE.PMREMCubeUVPacker(
+        pmremGenerator.cubeLods
+      )
+      pmremCubeUVPacker.update(renderer)
 
-new THREE.HDRCubeTextureLoader().load(THREE.UnsignedByteType, hdrUrls, function (hdrCubeMap) {
-  var pmremGenerator = new THREE.PMREMGenerator(hdrCubeMap)
-  pmremGenerator.update(renderer)
-  var pmremCubeUVPacker = new THREE.PMREMCubeUVPacker(pmremGenerator.cubeLods)
-  pmremCubeUVPacker.update(renderer)
-  var envMap = pmremCubeUVPacker.CubeUVRenderTarget.texture
-  loadGLTF(hdrCubeMap, envMap)
-})
+      const hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget
 
-function loadGLTF (cubeMap, envMap) {
-  var loader = new GLTFLoader()
-  loader.load('../assets/FlightHelmet/glTF/FlightHelmet.gltf', function (data) {
-    var gltf = data
-    var object = gltf.scene
+      hdrCubeMap.magFilter = THREE.LinearFilter
+      hdrCubeMap.needsUpdate = true
 
-    object.traverse(function (node) {
+      pmremGenerator.dispose()
+      pmremCubeUVPacker.dispose()
+
+      scene.background = hdrCubeMap
+      loadGLTF(hdrCubeRenderTarget.texture)
+    }
+  )
+
+function loadGLTF(envMap) {
+  const glTFloader = new GLTFLoader()
+  glTFloader.load(COMMON.modelUrl, function(data) {
+    const gltf = data
+    const object = gltf.scene
+
+    object.traverse(function(node) {
       if (node.isMesh) node.castShadow = true
     })
-    object.traverse(function (node) {
-      if (node.material && (node.material.isMeshStandardMaterial ||
-				(node.material.isShaderMaterial && node.material.envMap !== undefined))) {
+    object.traverse(function(node) {
+      if (
+        node.material &&
+        (node.material.isMeshStandardMaterial ||
+          (node.material.isShaderMaterial &&
+            node.material.envMap !== undefined))
+      ) {
         node.material.envMap = envMap
         node.material.needsUpdate = true
       }
     })
 
-    var cubeShader = THREE.ShaderLib[ 'cube' ]
-    var cubeMaterial = new THREE.ShaderMaterial({
-      fragmentShader: cubeShader.fragmentShader,
-      vertexShader: cubeShader.vertexShader,
-      uniforms: cubeShader.uniforms,
-      depthWrite: false,
-      side: THREE.BackSide
-    })
-
-    scene.background = new THREE.CubeTextureLoader()
-					.setPath(cubemapUrl)
-					.load([ 'px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png' ])
-
     scene.add(object)
   })
 }
 
-function onWindowResize () {
-  camera.aspect = container.offsetWidth / container.offsetHeight
-  camera.updateProjectionMatrix()
-  renderer.setSize(window.innerWidth, window.innerHeight)
-}
-
-function animate () {
+function animate() {
   requestAnimationFrame(animate)
   orbitControls.update()
   renderer.render(scene, camera)
 }
 
 animate()
+
+window.addEventListener(
+  'resize',
+  () => {
+    camera.aspect = window.innerWidth / window.innerHeight
+    camera.updateProjectionMatrix()
+
+    renderer.setSize(window.innerWidth, window.innerHeight)
+  },
+  false
+)

@@ -1,59 +1,68 @@
-const BABYLON = require('babylonjs')
-require('babylonjs-loaders')
+import COMMON from '../common.js'
 
-document.documentElement.style.height = '100%'
-document.body.style.height = '100%'
-document.body.style.margin = '0'
+import BABYLON from 'babylonjs'
+import 'babylonjs-loaders'
 
-var canvas = document.createElement('canvas')
-canvas.style.width = '100%'
-canvas.style.height = '100%'
-document.body.appendChild(canvas)
+COMMON.addLabel('BabylonJS')
 
-var engine = new BABYLON.Engine(canvas, true);
+const engine = new BABYLON.Engine(COMMON.canvas, true)
 
-var scene = new BABYLON.Scene(engine);
+const scene = new BABYLON.Scene(engine)
 
-var camera = new BABYLON.ArcRotateCamera("Camera", Math.PI / 2 + Math.PI / 6, Math.PI / 2 - Math.PI / 12, 1, new BABYLON.Vector3(0, 0, 0), scene);
-camera.setTarget(BABYLON.Vector3.Zero());
-camera.attachControl(canvas, false);
-camera.minZ = 0.1
-console.log('position', camera.position)
+const camera = new BABYLON.ArcRotateCamera(
+  'Camera',
+  Math.PI / 2 + Math.PI / 6,
+  Math.PI / 2 - Math.PI / 12,
+  1,
+  new BABYLON.Vector3(0, 0, 0),
+  scene
+)
+camera.setTarget(BABYLON.Vector3.Zero())
+camera.attachControl(COMMON.canvas, false)
+camera.minZ = COMMON.near
+// camera.maxZ = COMMON.far
 
-var panoramaUrl = '../assets/Pisa/pisa.hdr'
-var hdrTexture = new BABYLON.HDRCubeTexture(panoramaUrl, scene, 512);
-// var hdrTexture = new BABYLON.HDRCubeTexture("/assets/OpenfootageNET_Staatsbridge_HDRI_low.hdr", scene, 512);
-var hdrSkybox = scene.createDefaultSkybox(hdrTexture, true);
+const xAxis = BABYLON.MeshBuilder.CreateBox(
+  'xAxis',
+  { height: 0.003, width: 0.4, depth: 0.003 },
+  scene
+)
+xAxis.material = new BABYLON.StandardMaterial('myMaterial', scene)
+xAxis.material.emissiveColor = new BABYLON.Color3(1, 0, 0)
+xAxis.position = new BABYLON.Vector3(-0.2, 0, 0)
 
-var dir = '../assets/FlightHelmet/glTF/'
-var file = 'FlightHelmet.gltf'
-BABYLON.SceneLoader.Append(dir, file, scene, function (newScene) {
-});
-
-var xAxis = BABYLON.MeshBuilder.CreateBox("xAxis", {height: 0.003, width: 0.4, depth: 0.003}, scene);
-xAxis.material = new BABYLON.StandardMaterial("myMaterial", scene);
-xAxis.material.diffuseColor = new BABYLON.Color3(0, 0, 0);
-xAxis.material.emissiveColor = new BABYLON.Color3(1, 0, 0);
-xAxis.position = new BABYLON.Vector3(0.2, 0, 0)
-
-var yAxis = BABYLON.MeshBuilder.CreateBox("yAxis", {height: 0.4, width: 0.003, depth: 0.003}, scene);
-yAxis.material = new BABYLON.StandardMaterial("myMaterial", scene);
-yAxis.material.diffuseColor = new BABYLON.Color3(0, 0, 0);
-yAxis.material.emissiveColor = new BABYLON.Color3(0, 1, 0);
+const yAxis = BABYLON.MeshBuilder.CreateBox(
+  'yAxis',
+  { height: 0.4, width: 0.003, depth: 0.003 },
+  scene
+)
+yAxis.material = new BABYLON.StandardMaterial('myMaterial', scene)
+yAxis.material.emissiveColor = new BABYLON.Color3(0, 1, 0)
 yAxis.position = new BABYLON.Vector3(0, 0.2, 0)
 
-var zAxis = BABYLON.MeshBuilder.CreateBox("yAxis", {height: 0.003, width: 0.003, depth: 0.4}, scene);
-zAxis.material = new BABYLON.StandardMaterial("myMaterial", scene);
-zAxis.material.diffuseColor = new BABYLON.Color3(0, 0, 0);
-zAxis.material.emissiveColor = new BABYLON.Color3(0, 0, 1);
+const zAxis = BABYLON.MeshBuilder.CreateBox(
+  'yAxis',
+  { height: 0.003, width: 0.003, depth: 0.4 },
+  scene
+)
+zAxis.material = new BABYLON.StandardMaterial('myMaterial', scene)
+zAxis.material.emissiveColor = new BABYLON.Color3(0, 0, 1)
 zAxis.position = new BABYLON.Vector3(0, 0, 0.2)
 
-// var light = new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0,1,0), scene);
+const hdrTexture = new BABYLON.HDRCubeTexture(COMMON.panoramaUrl, scene, 512)
+scene.createDefaultSkybox(hdrTexture, true)
+
+BABYLON.SceneLoader.Append(
+  COMMON.modelBasePath,
+  COMMON.modelFileName,
+  scene,
+  function() {}
+)
 
 engine.runRenderLoop(function() {
-  scene.render();
-});
+  scene.render()
+})
 
 window.addEventListener('resize', function() {
-  engine.resize();
-});
+  engine.resize()
+})

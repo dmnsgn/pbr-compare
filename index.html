@@ -1,10 +1,33 @@
-<iframe src="claygl/index.html" style="width: 33%; height: 50%; position: absolute; top: 0; left: 0"> </iframe>
-<iframe src="babylonjs/index.html" style="width: 33%; height: 50%; position: absolute; top: 0; left: 33%;"> </iframe>
-<iframe src="threejs/index.html" style="width: 33%; height: 50%; position: absolute; bottom: 0; left: 0"> </iframe>
-<iframe src="pex/index.html" style="width: 33%; height: 50%; position: absolute; bottom: 0; left: 33%;"> </iframe>
-<iframe src="playcanvas/index.html" style="width: 33%; height: 50%; position: absolute; top: 0; left: 66%;"> </iframe>
-<p style="pointer-events: none; width: 33%; height: 50%; font-family: arial, sans-serif; color: white; font-size: 32px; bpox-sizing: border-box; padding: 2em; position: absolute; top: 0; left: 0"> <span style="background: black">ClayGL</span></p>
-<p style="pointer-events: none; width: 33%; height: 50%; font-family: arial, sans-serif; color: white; font-size: 32px; box-sizing: border-box; padding: 2em; position: absolute; top: 0; left: 33%;"> <span style="background: black">BabylonJS</span></p>
-<p style="pointer-events: none; width: 33%; height: 50%; font-family: arial, sans-serif; color: white; font-size: 32px; box-sizing: border-box; padding: 2em; position: absolute; bottom: 0; left: 0"> <span style="background: black">THREE</span></p>
-<p style="pointer-events: none; width: 33%; height: 50%; font-family: arial, sans-serif; color: white; font-size: 32px; box-sizing: border-box; padding: 2em; position: absolute; bottom: 0; left: 33%;"> <span style="background: black">PEX</span></p>
-<p style="pointer-events: none; width: 33%; height: 50%; font-family: arial, sans-serif; color: white; font-size: 32px; box-sizing: border-box; padding: 2em; position: absolute; top: 0; left: 66%;"> <span style="background: black">Playcanvas</span></p>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>PBR Compare</title>
+	<style>
+		body {
+			margin: 0;
+			width: 100%;
+			height: 100%;
+		}
+		.Container {
+			display: flex;
+			flex-wrap: wrap;
+			height: 100%;
+		}
+		.Container iframe {
+			width: calc(100% / 3);
+			border: none;
+		}
+	</style>
+</head>
+<body>
+	<div class="Container">
+		<iframe src="build/pex.html"></iframe>
+		<iframe src="build/threejs.html"></iframe>
+		<iframe src="build/babylonjs.html"></iframe>
+		<iframe src="build/claygl.html"></iframe>
+		<iframe src="build/playcanvas.html"></iframe>
+	</div>
+</body>
+</html>
