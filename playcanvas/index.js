@@ -18,8 +18,8 @@ app.scene.toneMapping = pc.TONEMAP_ACES
 
 const camera = new pc.Entity('camera')
 camera.addComponent('camera', {
-  clearColor: [0.1, 0.8, 0],
-  fov: (0.8 / Math.PI) * 180,
+  clearColor: [0, 0, 0],
+  fov: COMMON.fov,
   horizontalFov: false
 })
 camera.setPosition(...COMMON.initialPosition)

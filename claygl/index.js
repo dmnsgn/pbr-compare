@@ -16,7 +16,7 @@ clay.application.create(COMMON.canvas, {
       {
         shadow: true,
         temporalSuperSampling: {
-          enable: true
+          enable: false
         },
         postEffect: {
           enable: true,
@@ -30,7 +30,7 @@ clay.application.create(COMMON.canvas, {
             radius: 0.4
           },
           FXAA: {
-            enable: true
+            enable: false
           }
         }
       }

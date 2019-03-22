@@ -8,6 +8,10 @@ COMMON.addLabel('BabylonJS')
 const engine = new BABYLON.Engine(COMMON.canvas, true)
 
 const scene = new BABYLON.Scene(engine)
+scene.imageProcessingConfiguration.toneMappingEnabled = true
+scene.imageProcessingConfiguration.toneMappingType =
+  BABYLON.ImageProcessingConfiguration.tonemapping_aces
+scene.imageProcessingConfiguration.exposure = 1
 
 const camera = new BABYLON.ArcRotateCamera(
   'Camera',
@@ -17,11 +21,12 @@ const camera = new BABYLON.ArcRotateCamera(
   new BABYLON.Vector3(0, 0, 0),
   scene
 )
+
 camera.setTarget(BABYLON.Vector3.Zero())
 camera.attachControl(COMMON.canvas, false)
+camera.fov = (COMMON.fov * Math.PI) / 180.0
 camera.minZ = COMMON.near
 // camera.maxZ = COMMON.far
-
 const xAxis = BABYLON.MeshBuilder.CreateBox(
   'xAxis',
   { height: 0.003, width: 0.4, depth: 0.003 },
