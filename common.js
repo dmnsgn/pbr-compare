@@ -36,7 +36,7 @@ module.exports = {
   modelUrl: '../assets/FlightHelmet/glTF/FlightHelmet.gltf',
   modelBasePath: '../assets/FlightHelmet/glTF/',
   modelFileName: 'FlightHelmet.gltf',
-  initialPosition: [0.482, 0.2588, 0.836],
+  initialPosition: [0.482, 0.2588, 0.836], // Math.PI / 12, Math.PI / 6
   fov: 45,
   near: 0.1,
   far: 100

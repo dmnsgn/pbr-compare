@@ -6,7 +6,8 @@ import COMMON from '../common.js'
 // import * as Filament from 'filament.js'
 import * as Filament from '../assets/filament/filament.js'
 
-import Trackball from 'gltumble'
+// import Trackball from 'gltumble'
+import createOrbitControls from 'orbit-controls'
 
 COMMON.addLabel('Filament.js')
 
@@ -14,7 +15,7 @@ const ASSET_PATH = '../assets/filament'
 
 const ibl_suffix = Filament.getSupportedFormatSuffix('etc s3tc')
 
-const env = 'syferfontein_18d_clear_2k'
+const env = 'pisa'
 const ibl_url = `${ASSET_PATH}/${env}/${env}_ibl${ibl_suffix}.ktx`
 const sky_url = `${ASSET_PATH}/${env}/${env}_skybox.ktx`
 const helmet_filamat_url = `${ASSET_PATH}/helmet.filamat`
@@ -54,19 +55,27 @@ class App {
     this.canvas = canvas
     const engine = (this.engine = Filament.Engine.create(this.canvas))
     this.scene = engine.createScene()
-    this.trackball = new Trackball(canvas, { startSpin: 0 })
+    // this.trackball = new Trackball(canvas, { startSpin: 0 })
+    this.controls = createOrbitControls({
+      theta: Math.PI / 6,
+      phi: Math.PI / 2 - Math.PI / 12,
+      // phi: Math.PI / 3,
+      // theta: Math.PI / 4,
+      distance: 1
+    })
+    this.controls.update()
 
-    const sunlight = Filament.EntityManager.get().create()
-    Filament.LightManager.Builder(LightType.SUN)
-      .color([0.98, 0.92, 0.89])
-      .intensity(100000.0)
-      .direction([0.6, -1.0, -0.8])
-      .castShadows(true)
-      .sunAngularRadius(1.9)
-      .sunHaloSize(10.0)
-      .sunHaloFalloff(80.0)
-      .build(engine, sunlight)
-    this.scene.addEntity(sunlight)
+    // const sunlight = Filament.EntityManager.get().create()
+    // Filament.LightManager.Builder(LightType.SUN)
+    //   .color([0.98, 0.92, 0.89])
+    //   .intensity(100000.0)
+    //   .direction([0.6, -1.0, -0.8])
+    //   .castShadows(true)
+    //   .sunAngularRadius(1.9)
+    //   .sunHaloSize(10.0)
+    //   .sunHaloFalloff(80.0)
+    //   .build(engine, sunlight)
+    // this.scene.addEntity(sunlight)
 
     const indirectLight = (this.ibl = engine.createIblFromKtx(ibl_url))
     this.scene.setIndirectLight(indirectLight)
@@ -141,10 +150,16 @@ class App {
   }
 
   render() {
-    const tcm = this.engine.getTransformManager()
-    const inst = tcm.getInstance(this.helmet)
-    tcm.setTransform(inst, this.trackball.getMatrix())
-    inst.delete()
+    // const tcm = this.engine.getTransformManager()
+    // const inst = tcm.getInstance(this.helmet)
+    // tcm.setTransform(inst, this.trackball.getMatrix())
+    // inst.delete()
+    this.controls.update()
+    this.camera.lookAt(
+      this.controls.position,
+      this.controls.direction,
+      this.controls.up
+    )
     this.renderer.render(this.swapChain, this.view)
     window.requestAnimationFrame(this.render)
   }
@@ -154,13 +169,19 @@ class App {
     const width = (this.canvas.width = window.innerWidth * dpr)
     const height = (this.canvas.height = window.innerHeight * dpr)
     this.view.setViewport([0, 0, width, height])
-    const y = -0.125,
-      eye = [0, y, 2],
-      center = [0, y, 0],
-      up = [0, 1, 0]
-    this.camera.lookAt(eye, center, up)
+    // const eye = COMMON.initialPosition
+    // const center = [0, 0, 0]
+    // const up = [0, 1, 0]
+    // this.camera.lookAt(eye, center, up)
     const aspect = width / height
-    const fov = aspect < 1 ? Fov.HORIZONTAL : Fov.VERTICAL
-    this.camera.setProjectionFov(30, aspect, 1.0, 10.0, fov)
+    const fov = Fov.VERTICAL
+    // const fov = aspect < 1 ? Fov.HORIZONTAL : Fov.VERTICAL
+    this.camera.setProjectionFov(
+      COMMON.fov,
+      aspect,
+      COMMON.near,
+      COMMON.far,
+      fov
+    )
   }
 }
